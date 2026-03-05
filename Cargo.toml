@@ -1,0 +1,30 @@
+[package]
+name = "heimdal-4g"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+log = "0.4.28"
+tokio = { version = "1.48.0", features = ["full"] }
+env_logger = "0.11.8"
+at-commands = "0.5.6"
+serialport ={ version="4.8.1", default-features = false }
+anyhow = "1.0.100"
+thiserror = "2.0.17"
+lettre = "0.11.19"
+async-channel = "2.5.0"
+dotenv = "0.15.0"
+#openssl = { version = "0.10.75", features = [] }
+openssl = { version = "0.10", features = ["vendored"] }
+rusqlite = "0.38.0"
+
+[patch.crates-io]
+libudev-sys = { git = "https://github.com/Emilgardis/libudev-sys/", branch = "fix-cross-compilation"}
+
+[build]
+target = "armv7-unknown-linux-gnueabihf"
+
+[target.armv7-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
+#pkg-config = "arm-linux-gnueabihf-pkg-config"
