@@ -1,0 +1,51 @@
+name: Build and Package
+
+on:
+  push:
+    branches:
+      - "release/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+          platform:
+            - name: Linux ARM64
+              os: ubuntu-latest
+              target: aarch64-unknown-linux-gnu
+              use_cross: true
+            - name: Linux x86_64
+              os: ubuntu-latest
+              target: x86_64-unknown-linux-gnu
+              use_cross: false
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.platform.target }}
+    - name: Install deb
+      run: cargo install cargo-deb
+    - name: Install cross
+      if: matrix.platform.use_cross
+      run: cargo install cross
+    - name: Build
+      if: matrix.platform.use_cross
+      run: cross build --release --target ${{ matrix.platform.target }}
+    - name: Build Native
+      if: ${{ !matrix.platform.use_cross }}
+      run: cargo build --release --target ${{ matrix.platform.target }}
+    - name: Create Cross Debian Package
+      if: ${{ matrix.platform.use_cross }}
+      run: cross deb --no-build --target ${{ matrix.platform.target }} --no-strip
+    - name: Create Debian Package
+      if: ${{ !matrix.platform.use_cross }}
+      run: cargo deb --no-build --target ${{ matrix.platform.target }}
+    - name: Upload Debian Package Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: deb-package-${{ matrix.platform.target }}
+        path: target/${{ matrix.platform.target }}/debian/*.deb
