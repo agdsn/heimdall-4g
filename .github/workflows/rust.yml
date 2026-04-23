@@ -1,13 +1,11 @@
-name: Build and Package
+name: Heimdall
 
 on:
   push:
-    branches:
-      - "release/**"
   workflow_dispatch:
 
 jobs:
-  build:
+  package:
     strategy:
       matrix:
           platform:
