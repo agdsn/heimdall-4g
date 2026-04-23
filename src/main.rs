@@ -1,9 +1,9 @@
 use async_channel::unbounded;
 use dotenv::dotenv;
-use heimdal_4g::Config;
-use heimdal_4g::modem::modem_loop;
-use heimdal_4g::email::send_mail_task;
-use heimdal_4g::router::enterprise;
+use heimdall::Config;
+use heimdall::modem::modem_loop;
+use heimdall::email::send_mail_task;
+use heimdall::router::bifroest;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     let task = tokio::spawn(async move { modem_loop(config.serial_port, s).await });
-    let task_router = tokio::spawn(async move { enterprise(config.router, r, s2).await });
+    let task_router = tokio::spawn(async move { bifroest(config.router, r, s2).await });
     let task2 = tokio::spawn(async move { send_mail_task(r2).await });
     match tokio::try_join!(task, task_router, task2) {
         Ok(_) => Ok(()),

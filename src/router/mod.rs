@@ -117,7 +117,7 @@ impl Gateway for SQLRouter {
 }
 
 
-pub async fn enterprise(scotty: Box<dyn Gateway>, reader: Receiver<SMS>, sender: Sender<Message>)
+pub async fn bifroest(scotty: Box<dyn Gateway>, reader: Receiver<SMS>, sender: Sender<Message>)
 {
    // let  = create_gateway();
     info!("Enterprise on command!");

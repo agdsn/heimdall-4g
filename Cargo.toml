@@ -1,5 +1,5 @@
 [package]
-name = "heimdal-4g"
+name = "heimdall"
 version = "0.1.0"
 edition = "2024"
 
@@ -31,7 +31,7 @@ priority = "optional"
 systemd-units = { enable = false }
 maintainer-scripts = "debian/"
 assets = [
-    ["target/release/heimdal-4g", "usr/bin/", "755"],
+    ["target/release/heimdall", "usr/bin/", "755"],
 ]
 
 [patch.crates-io]

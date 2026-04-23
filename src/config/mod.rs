@@ -1,6 +1,5 @@
 use std::env;
 use lettre::message::Mailbox;
-use lettre::transport::smtp::authentication::Credentials;
 use rusqlite::fallible_iterator::FallibleIterator;
 use serde::{Deserialize, Serialize};
 use crate::DefaultRouter;

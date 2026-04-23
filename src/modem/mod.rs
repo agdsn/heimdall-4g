@@ -61,7 +61,7 @@ impl Modem
 
     async fn send(&mut self, timeout: u16) {
         self.serial.write(self.write_buffer.as_slice()).unwrap();
-        self.serial.write(b"\n\r");
+        self.serial.write(b"\n\r").unwrap();
 
         self.write_buffer.clear();
         // insert sleep here
