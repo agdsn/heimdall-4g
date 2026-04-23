@@ -1,5 +1,5 @@
 [package]
-name = "heimdal-4g"
+name = "heimdall-4g"
 version = "0.1.0"
 edition = "2024"
 
@@ -15,9 +15,24 @@ thiserror = "2.0.17"
 lettre = "0.11.19"
 async-channel = "2.5.0"
 dotenv = "0.15.0"
-#openssl = { version = "0.10.75", features = [] }
 openssl = { version = "0.10", features = ["vendored"] }
-rusqlite = "0.38.0"
+rusqlite = {version = "0.38.0", features = ["bundled"]}
+
+
+[package.metadata.deb]
+maintainer = "Alexander Lindner <alexif@agdsn.me>"
+copyright = "2026, Alexander Lindner"
+extended-description = """\
+A simple subcommand for the Cargo package manager for \
+building Debian packages from Rust projects."""
+depends = "$auto"
+section = "utility"
+priority = "optional"
+systemd-units = { enable = false }
+maintainer-scripts = "debian/"
+assets = [
+    ["target/release/heimdal-4g", "usr/bin/", "755"],
+]
 
 [patch.crates-io]
 libudev-sys = { git = "https://github.com/Emilgardis/libudev-sys/", branch = "fix-cross-compilation"}
@@ -27,4 +42,3 @@ target = "armv7-unknown-linux-gnueabihf"
 
 [target.armv7-unknown-linux-gnueabihf]
 linker = "arm-linux-gnueabihf-gcc"
-#pkg-config = "arm-linux-gnueabihf-pkg-config"

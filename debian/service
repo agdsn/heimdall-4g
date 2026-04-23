@@ -1,0 +1,11 @@
+[Unit]
+Description=My Rust Application
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/heimdal-4g
+EnvironmentFile=/var/heimdal/heimdal.env
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
