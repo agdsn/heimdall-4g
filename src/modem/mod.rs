@@ -11,8 +11,7 @@ use anyhow::{Result, bail, Error};
 use async_channel::Sender;
 use thiserror::Error;
 use log::{info, warn, error};
-
-
+use crate::config::SerialPortConfig;
 
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 #[error("Sim seems to be not ready")]
@@ -238,16 +237,14 @@ impl Modem
                 break;
             }
             match self.serial.read(&mut buf) {
-                Ok(0) => { info!("nothing") }, // no more data
+                Ok(0) => { info!("nothing to be rad") },
                 Ok(n) => {
                     result.extend_from_slice(&buf[..n]);
-                    // check if delimiter exists
                     if result.windows(delim.len()).any(|w| w == delim){
                         break;
                     }
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
-                    // optional: break on timeout
                     info!("Timed out");
                     break;
                 }
@@ -284,23 +281,31 @@ impl Modem
 
 }
 
+impl Drop for Modem {
+    fn drop(&mut self) {
 
-pub async fn modem_loop(modem: &mut Modem, sender: Sender<SMS>) -> Result<()> {
-
-    modem.load_config(ModemConfig{sms_mode: 1,  sms_charset: String::new()}).await?;
-
-    for i in 1..=23 {
-        let sms_res = modem.read_sms(i).await;
-        if let Ok(sms) = sms_res {
-            info!("SMS ready to beam from: {}  {} on {}", sms.send_number, sms.data, sms.time);
-
-            sender.send(sms).await?;
-            modem.delete_sms(i).await?;
-        }
+        info!("Dropping Modem");
     }
-    let mut test = 0;
+}
+
+pub async fn modem_loop(serial_port: SerialPortConfig, sender: Sender<SMS>) -> Result<()> {
     loop {
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+        let mut modem = Modem::new(serial_port.serial_port.as_str(), serial_port.baud_rate)?;
+        modem.load_config(ModemConfig { sms_mode: 1, sms_charset: String::new() }).await?;
+
+        for i in 1..=23 {
+            let sms_res = modem.read_sms(i).await;
+            if let Ok(sms) = sms_res {
+                info!("SMS ready to beam from: {}  {} on {}", sms.send_number, sms.data, sms.time);
+
+                sender.send(sms).await?;
+                modem.delete_sms(i).await?;
+            }
+        }
+        drop(modem);
+        tokio::time::sleep(Duration::from_millis(300000)).await;
+    }
+    /*
 
         match modem.read() {
             Ok(ModemStatus::NONE) => info!("Modem continue!"),
@@ -322,6 +327,6 @@ pub async fn modem_loop(modem: &mut Modem, sender: Sender<SMS>) -> Result<()> {
             },
             _ => info!("Modem continue!"),
         }
-        modem.check_power().await?;
-    }
+        modem.check_power().await?;*/
+   // }
 }

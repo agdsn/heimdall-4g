@@ -1,19 +1,18 @@
 use std::env;
 use std::sync::Arc;
-use async_channel::Receiver;
+use async_channel::{Receiver, Sender};
 use lettre::{Message, Address};
 use lettre::message::header::ContentType;
 use lettre::message::Mailbox;
 use anyhow::{Result, bail};
-use log::error;
+use log::{error, info};
 use rusqlite::Connection;
-use crate::email::EmailReceiver;
 use crate::modem::SMS;
 
 
-trait Gateway {
+pub trait Gateway: Send {
     fn generate_sms(&self, sms: SMS) -> Option<Message>;
-    fn generate_email(sender: Mailbox, receivers: Vec<Mailbox>, header: String, body: String) -> Result<Message> {
+    fn generate_email(sender: Mailbox, receivers: Vec<Mailbox>, header: String, body: String) -> Result<Message> where Self: Sized {
         
         if receivers.is_empty() {
             bail!("No receivers are specified")
@@ -114,5 +113,25 @@ impl Gateway for SQLRouter {
             Err(error) => error!("Unable to create mail: {}", error)
         };
         None
+    }
+}
+
+
+pub async fn enterprise(scotty: Box<dyn Gateway>, reader: Receiver<SMS>, sender: Sender<Message>)
+{
+   // let  = create_gateway();
+    info!("Enterprise on command!");
+    loop {
+        let sms = match reader.recv().await {
+            Ok(sms) => sms,
+            Err(e) => {error!("unable to receive Data from modem! {}", e); panic!("Unable to receive");}
+        };
+
+        if let Some(email) = scotty.generate_sms(sms) {
+            match sender.send(email).await {
+                Ok(()) => info!("Energize, Scotty"),
+                Err(e) => error!("Unable to send to mail thread: {}", e)
+            };
+        };
     }
 }
