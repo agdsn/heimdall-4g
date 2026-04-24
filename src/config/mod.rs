@@ -49,20 +49,17 @@ impl Default for Config {
 }
 fn create_gateway() -> Box<dyn Gateway + Send> {
     let sender = Mailbox::new(match env::var("SENDER_NAME") { Ok(x)=> Some(x), _ => None }, env::var("EMAIL").unwrap().parse().unwrap());
+    let default_receiver = match env::var("RECIPIENT")  {
+     Ok(receiver) => Mailbox::new(match env::var("SENDER_NAME") { Ok(x)=> Some(x), _ => None }, receiver.parse().unwrap()),
+     Err(_) => panic!("RECIPIENT environment variable must be set!"),
+    };
     match env::var("ROUTER").unwrap().as_str() {
         "default" => {
-            if let Ok(receiver) = env::var("RECIPIENT") {
-                let receiver = Mailbox::new(match env::var("SENDER_NAME") { Ok(x)=> Some(x), _ => None }, receiver.parse().unwrap());
-                Box::new(DefaultRouter::new(sender, receiver))
-
-            } else {
-                panic!("RECIPIENT environment variable must be set!");
-            }
-
+                Box::new(DefaultRouter::new(sender, default_receiver))
         }
         "sql" => {
             if let Ok(backend) = env::var("SQL_BACKEND") {
-                Box::new(SQLRouter::new(sender, &backend).unwrap())
+                Box::new(SQLRouter::new(sender, default_receiver, &backend).unwrap())
             } else {
                 panic!("SQL_BACKEND environment variable must be set!");
             }
