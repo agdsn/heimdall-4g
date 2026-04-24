@@ -116,7 +116,7 @@ impl Gateway for SQLRouter {
 }
 
 
-pub async fn bifroest(scotty: Box<dyn Gateway>, reader: Receiver<SMS>, sender: Sender<Message>)
+pub async fn bifroest(heimdall: Box<dyn Gateway>, reader: Receiver<SMS>, sender: Sender<Message>)
 {
     info!("Enterprise on command!");
     loop {
@@ -125,7 +125,7 @@ pub async fn bifroest(scotty: Box<dyn Gateway>, reader: Receiver<SMS>, sender: S
             Err(e) => {error!("unable to receive Data from modem! {}", e); panic!("Unable to receive");}
         };
 
-        if let Some(email) = scotty.generate_sms(sms) {
+        if let Some(email) = heimdall.generate_sms(sms) {
             match sender.send(email).await {
                 Ok(()) => info!("Sending Mail"),
                 Err(e) => error!("Unable to send to mail thread: {}", e)

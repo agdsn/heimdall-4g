@@ -336,7 +336,7 @@ async fn waiting(modem: &mut Modem, sender: &Sender<SMS>) -> Result<()> {
 
 pub async fn modem_loop(serial_port: SerialPortConfig, sender: Sender<SMS>) -> Result<()> {
     let pull_time = match env::var("PULL_TIME") {
-        Ok(t) => t.parse::<u64>().unwrap_or(300000),
+        Ok(t) => { info!("To pase {}", t); t.parse::<u64>().unwrap_or(300000) },
         Err(_) => {
             info!("Set PULL_TIME to 30000ms");
             300000
