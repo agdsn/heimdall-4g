@@ -26,6 +26,11 @@ pub struct UnparsableATResponse;
 pub struct UnableToSetConfig;
 
 
+enum  Strategy {
+    PULL,
+    WAIT,
+}
+
 pub struct SMS {
     pub received_number: String,
     pub send_number: String,
@@ -288,52 +293,75 @@ impl Drop for Modem {
     }
 }
 
+async fn pulling(modem: &mut Modem, sender: &Sender<SMS>) -> Result<()> {
+    modem.load_config(ModemConfig { sms_mode: 1, sms_charset: String::new() }).await?;
+
+    for i in 1..=23 {
+        let sms_res = modem.read_sms(i).await;
+        if let Ok(sms) = sms_res {
+            info!("SMS ready to beam from: {}  {} on {}", sms.send_number, sms.data, sms.time);
+
+            sender.send(sms).await?;
+            modem.delete_sms(i).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn waiting(modem: &mut Modem, sender: &Sender<SMS>) -> Result<()> {
+    match modem.read() {
+        Ok(ModemStatus::NONE) => info!("Modem continue!"),
+        Ok(ModemStatus::SMS(status)) => {
+            info!("Received SMS in slot: {:?}", status);
+            //modem.load_config(ModemConfig{sms_mode: 1,  sms_charset: String::new()}).await?;
+
+            let sms = modem.read_sms(status).await?;
+            info!("SMS ready to beam from: {}  {} on {}", sms.send_number, sms.data, sms.time);
+
+            sender.send(sms).await?;
+            modem.delete_sms(status).await?;
+        }
+        Err(e) => {
+            error!("Unknown modem response {}",e);
+            let sms = SMS{received_number: "Error".parse()?, send_number: "Error".parse()?, time: "Now".parse()?, data: format!("There was a error while writing: {}", e), message_type: "Error".parse()? };
+            sender.send(sms).await?;
+            bail!(UnparsableATResponse);
+        },
+        _ => info!("Modem continue!"),
+    }
+    modem.check_power().await?;
+    Ok(())
+}
+
 pub async fn modem_loop(serial_port: SerialPortConfig, sender: Sender<SMS>) -> Result<()> {
     let pull_time = match env::var("PULL_TIME") {
-        Ok(t) => t.parse::<i32>().unwrap_or(300000),
+        Ok(t) => t.parse::<u64>().unwrap_or(300000),
         Err(_) => {
             info!("Set PULL_TIME to 30000ms");
             300000
         },
     };
+
+    let strategy = match env::var("MODEM_STRAT") {
+        Ok(ref v) if v == "WAIT" => Strategy::WAIT,
+        _ => Strategy::PULL,
+    };
+
+    let mut modem = Modem::new(serial_port.serial_port.as_str(), serial_port.baud_rate)?;
+    modem.load_config(ModemConfig { sms_mode: 1, sms_charset: String::new() }).await?;
+    pulling(&mut modem, &sender).await?;
+
     loop {
-        let mut modem = Modem::new(serial_port.serial_port.as_str(), serial_port.baud_rate)?;
-        modem.load_config(ModemConfig { sms_mode: 1, sms_charset: String::new() }).await?;
 
-        for i in 1..=23 {
-            let sms_res = modem.read_sms(i).await;
-            if let Ok(sms) = sms_res {
-                info!("SMS ready to beam from: {}  {} on {}", sms.send_number, sms.data, sms.time);
-
-                sender.send(sms).await?;
-                modem.delete_sms(i).await?;
+        match strategy {
+            Strategy::WAIT => {
+                waiting(&mut modem, &sender).await?;
+            }
+            Strategy::PULL => {
+                pulling(&mut modem, &sender).await?;
             }
         }
-        drop(modem);
         tokio::time::sleep(Duration::from_millis(pull_time)).await;
-    }
-    /*
-
-        match modem.read() {
-            Ok(ModemStatus::NONE) => info!("Modem continue!"),
-            Ok(ModemStatus::SMS(status)) => {
-                info!("Received SMS in slot: {:?}", status);
-                //modem.load_config(ModemConfig{sms_mode: 1,  sms_charset: String::new()}).await?;
-
-                let sms = modem.read_sms(status).await?;
-                info!("SMS ready to beam from: {}  {} on {}", sms.send_number, sms.data, sms.time);
-
-                sender.send(sms).await?;
-                modem.delete_sms(status).await?;
-            }
-            Err(e) => {
-                error!("Unknown modem response {}",e);
-                let sms = SMS{received_number: "Error".parse()?, send_number: "Error".parse()?, time: "Now".parse()?, data: format!("There was a error while writing: {}", e), message_type: "Error".parse()? };
-                sender.send(sms).await?;
-                bail!(UnparsableATResponse);
-            },
-            _ => info!("Modem continue!"),
-        }
-        modem.check_power().await?;*/
-   // }
+   }
 }
