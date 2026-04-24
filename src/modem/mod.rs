@@ -1,6 +1,6 @@
 mod dummy_serial;
 
-use std::io;
+use std::{env, io};
 use std::io::{Read, Write};
 use std::thread::sleep;
 use std::time::Duration;
@@ -289,6 +289,13 @@ impl Drop for Modem {
 }
 
 pub async fn modem_loop(serial_port: SerialPortConfig, sender: Sender<SMS>) -> Result<()> {
+    let pull_time = match env::var("PULL_TIME") {
+        Ok(t) => t.parse::<i32>().unwrap_or(300000),
+        Err(_) => {
+            info!("Set PULL_TIME to 30000ms");
+            300000
+        },
+    };
     loop {
         let mut modem = Modem::new(serial_port.serial_port.as_str(), serial_port.baud_rate)?;
         modem.load_config(ModemConfig { sms_mode: 1, sms_charset: String::new() }).await?;
@@ -303,7 +310,7 @@ pub async fn modem_loop(serial_port: SerialPortConfig, sender: Sender<SMS>) -> R
             }
         }
         drop(modem);
-        tokio::time::sleep(Duration::from_millis(300000)).await;
+        tokio::time::sleep(Duration::from_millis(pull_time)).await;
     }
     /*
 
