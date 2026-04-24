@@ -29,6 +29,9 @@ pub trait Gateway: Send {
         let msg = msg_build.body(body)?;
         anyhow::Ok(msg)
     }
+    fn gen_header(&self, sms: &SMS, content: &str) -> String {
+        content.replace("%DATE", sms.time.as_str()).replace("%FROM", sms.send_number.as_str())
+    }
 }
 
 
@@ -45,16 +48,11 @@ impl DefaultRouter {
         }
         DefaultRouter {mailbox_sender, mailbox_receiver, content: String::from("Neue SMS von %FROM empfangen um %DATE")}
     }
-
-    fn gen_header(&self, sms: &SMS) -> String {
-        let header = self.content.clone();
-        header.replace("%DATE", sms.time.as_str()).replace("%FROM", sms.send_number.as_str())
-    }
 }
 
 impl Gateway for DefaultRouter {
     fn generate_sms(&self, sms: SMS) -> Option<Message> {
-        match DefaultRouter::generate_email(self.mailbox_sender.clone(), vec![self.mailbox_receiver.clone()], self.gen_header(&sms), sms.data.to_string()) {
+        match DefaultRouter::generate_email(self.mailbox_sender.clone(), vec![self.mailbox_receiver.clone()], self.gen_header(&sms, &self.content), sms.data.to_string()) {
             Ok(mail) => return Some(mail),
             Err(error) => error!("Unable to create mail: {}", error)
         };
@@ -65,20 +63,21 @@ impl Gateway for DefaultRouter {
 pub struct SQLRouter {
     conn: Connection,
     mailbox_sender: Mailbox,
-    header: String
+    header: String,
+    default_mailbox_receiver: Mailbox
 }
 
 impl SQLRouter {
-    pub fn new(mailbox_sender: Mailbox, path_to_database: &str) -> Result<SQLRouter> {
+    pub fn new(mailbox_sender: Mailbox, default_mailbox_receiver: Mailbox, path_to_database: &str) -> Result<SQLRouter> {
         let conn = Connection::open(path_to_database)?;
 
         let stmt: rusqlite::Result<String> = conn.query_one("SELECT content FROM settings WHERE key = 'header'", [], |row| row.get(0));
         
 
         if let Ok(header) = stmt { 
-            anyhow::Ok(SQLRouter {mailbox_sender, conn, header})
+            anyhow::Ok(SQLRouter {mailbox_sender, default_mailbox_receiver, conn, header})
         } else {
-            anyhow::Ok(SQLRouter {mailbox_sender, conn, header:String::from("Neue SMS von %FROM empfangen um %DATE")})
+            anyhow::Ok(SQLRouter {mailbox_sender, default_mailbox_receiver, conn, header: String::from("Neue SMS von %FROM empfangen um %DATE")})
         }
     }
 
@@ -106,9 +105,9 @@ impl SQLRouter {
 impl Gateway for SQLRouter {
     fn generate_sms(&self, sms: SMS) -> Option<Message> {
         
-        let receivers = self.get_receiver(&sms.send_number).unwrap_or(vec![]);
+        let receivers = self.get_receiver(&sms.send_number).unwrap_or(vec![self.default_mailbox_receiver.clone()]);
 
-        match DefaultRouter::generate_email(self.mailbox_sender.clone(), receivers, self.header.clone(), sms.data.to_string()) {
+        match DefaultRouter::generate_email(self.mailbox_sender.clone(), receivers, self.gen_header(&sms, &self.header), sms.data.to_string()) {
             Ok(mail) => return Some(mail),
             Err(error) => error!("Unable to create mail: {}", error)
         };
@@ -119,7 +118,6 @@ impl Gateway for SQLRouter {
 
 pub async fn bifroest(scotty: Box<dyn Gateway>, reader: Receiver<SMS>, sender: Sender<Message>)
 {
-   // let  = create_gateway();
     info!("Enterprise on command!");
     loop {
         let sms = match reader.recv().await {
@@ -129,7 +127,7 @@ pub async fn bifroest(scotty: Box<dyn Gateway>, reader: Receiver<SMS>, sender: S
 
         if let Some(email) = scotty.generate_sms(sms) {
             match sender.send(email).await {
-                Ok(()) => info!("Energize, Scotty"),
+                Ok(()) => info!("Sending Mail"),
                 Err(e) => error!("Unable to send to mail thread: {}", e)
             };
         };
