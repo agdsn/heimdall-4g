@@ -97,6 +97,9 @@ impl SQLRouter {
                 Err(e) => error!("Unable to parse Mail address: {} exited with error {}", mail.0, e)
             };
         }
+        if out.is_empty() {
+           bail!("Unable to find Mail address")
+        }
         Ok(out)
     }
 
