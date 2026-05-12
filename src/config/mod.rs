@@ -2,6 +2,8 @@ use std::env;
 use lettre::message::Mailbox;
 use rusqlite::fallible_iterator::FallibleIterator;
 use serde::{Deserialize, Serialize};
+use anyhow::Result;
+use log::info;
 use crate::DefaultRouter;
 use crate::email::SMTPCredentials;
 use crate::router::{Gateway, SQLRouter};
@@ -22,13 +24,26 @@ pub struct SerialPortConfig {
 
 impl Default for SerialPortConfig {
     fn default() -> Self {
-        Self {
+        SerialPortConfig {
             serial_port: "/dev/ttyUSB3".to_string(),
             baud_rate: 115200,
             timeout_ms: 5000,
         }
     }
 }
+
+impl SerialPortConfig {
+    fn new() -> Result<Self> {
+        Ok(
+            Self {
+                serial_port: env::var("SERIAL_PORT").unwrap_or("/dev/ttyUSB3".to_string()),
+                baud_rate: env::var("BAUD").unwrap_or("115200".to_string()).parse()?,
+                timeout_ms: env::var("SERIAL_TIMEOUT").unwrap_or("5000".to_string()).parse()?,
+            }
+        )
+    }
+}
+
 
 impl Default for Config {
     fn default() -> Self {
@@ -38,7 +53,13 @@ impl Default for Config {
 
 
         Self {
-            serial_port: SerialPortConfig::default(),
+            serial_port: match SerialPortConfig::new() {
+                Ok(serial_port) => serial_port,
+                Err(_) => {
+                    info!("Unable to parse Serial Config. Continuing with default config");
+                    SerialPortConfig::default()
+                },
+            },
             debug: false,
             smtp_cred: SMTPCredentials::new(env::var("EMAIL").unwrap(), env::var("SERVER").unwrap(),env::var("PASSWORD").unwrap()),
             router: create_gateway()
