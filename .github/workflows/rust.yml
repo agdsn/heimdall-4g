@@ -42,18 +42,28 @@ jobs:
     - name: Create Debian Package
       if: ${{ !matrix.platform.use_cross }}
       run: cargo deb --no-build --target ${{ matrix.platform.target }}
-    - name: Upload Debian Package Artifact
+    - name: Upload release Debian Package Artifact
+      if: github.ref == 'refs/heads/master'
       uses: actions/upload-artifact@v4
       with:
         name: deb-package-${{ matrix.platform.target }}
         path: target/${{ matrix.platform.target }}/debian/*.deb
-    - name: Create tag
+    - name: Upload test Debian Package Artifact
+      if: github.ref != 'refs/heads/master'
+      uses: actions/upload-artifact@v4
+      with:
+        name: deb-package-${{ matrix.platform.target }}
+        path: target/${{ matrix.platform.target }}/debian/*.deb
+        retention-days: 1
+    - name: Create release tag
+      if: github.ref == 'refs/heads/master'
       run: |
         TAG=v1.0.${{ github.run_number }}
         echo "TAG=$TAG" >> $GITHUB_ENV
         git tag $TAG
         git push origin $TAG
     - name: Upload release asset
+      if: github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v1
       with:
         files:  target/${{ matrix.platform.target }}/debian/*.deb
